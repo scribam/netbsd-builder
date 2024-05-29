@@ -1,11 +1,9 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
 set -euxo pipefail
 
 OS_VERSION="$1"; shift
 ARCHITECTURE="$1"; shift
-
-# rm -rf packer_cache
 
 packer init .
 

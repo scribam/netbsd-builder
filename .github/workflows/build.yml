@@ -1,8 +1,5 @@
 name: Build VM Disk Image
 
-env:
-  PACKER_VERSION: '1.8.4'
-
 on:
   push:
     branches:
@@ -11,67 +8,63 @@ on:
       - 'v*'
   pull_request:
     branches:
-      - master
+      - 'master'
 
 jobs:
   build:
-    name: ${{ matrix.version }}, ${{ matrix.architecture.name }}
-    runs-on: ubuntu-latest
-    container: alpine:edge
+    name: Build
+    runs-on: ubuntu-24.04
     strategy:
+        fail-fast: false
         matrix:
           version:
-            - 9.2
-            - 9.3
-            - 9.4
+            - '9.2'
+            - '9.3'
+            - '9.4'
             - '10.0'
 
           architecture:
-            - name: x86-64
-              qemu: x86_64
-
-            - name: arm64
-              qemu: aarch64
+            - arm64
+            - x86-64
 
           exclude:
             - version: 9.2
-              architecture:
-                name: arm64
-                qemu: aarch64
+              architecture: arm64
 
             - version: 9.3
-              architecture:
-                name: arm64
-                qemu: aarch64
+              architecture: arm64
 
             - version: 9.4
-              architecture:
-                name: arm64
-                qemu: aarch64
+              architecture: arm64
 
     steps:
-      - name: Clone Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Install Dependencies
-        # run: sudo apt update && sudo apt install curl unzip "qemu-system-${{ matrix.architecture.qemu }}" -y
-        run: apk add --no-cache qemu-img "qemu-system-${{ matrix.architecture.qemu }}"
+        run: |
+          sudo apt-get update
+          sudo apt-get install qemu-system-arm qemu-system-x86 qemu-utils
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       - uses: hashicorp/setup-packer@main
         with:
-          version: ${{ env.PACKER_VERSION }}
+          version: "1.10.3"
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
+      # - uses: mxschmitt/action-tmate@v3
 
       - name: Build Image
         run: |
-          PACKER_LOG=1 ./build.sh \
+          CHECKPOINT_DISABLE=1 PACKER_LOG=1 ./build.sh \
             '${{ matrix.version }}' \
-            '${{ matrix.architecture.name }}' \
-            -var 'headless=true'
+            '${{ matrix.architecture }}' \
+            -var headless=true
 
       - name: Extract Version
         id: version
